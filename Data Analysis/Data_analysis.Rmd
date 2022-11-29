@@ -1,0 +1,410 @@
+---
+title: "Small World Phenomenon in SCUT"
+output:
+  rmdformats::readthedown:
+    self_contained: true
+    lightbox: true
+    gallery: false
+    highlight: tango
+    collapse: false
+    smooth_scroll: true
+    toc_depth: 3
+    
+author: 
+  - name: 郭吉南
+    affiliation: 201930031052@mail.scut.edu.cn
+  - name: 何泽安
+    affiliation: 202030020342@mail.scut.edu.cn
+  - name: 张新镭
+    affiliation: 202030101256@mail.scut.edu.cn
+  - name: 杨赏纯
+    affiliation: 202035020248@mail.scut.edu.cn
+date: "2022-11-29"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Running Issues
+1. If you want to run the full content of this r markdown file on your computer, you should make sure you've installed these external packages, **igraph, RcolorBrewer, randomcoloR**. Notice that you can also run parts of this file once you've installed necessary packages needed in that part.  
+
+2. The commented chunk below provide direct codes to install the packages mentioned above with the support of **Rtools**. 
+```{r}
+#install.packages('rmdformats')
+#install.packages('randomcoloR')
+#install.packages('igraph')
+```
+
+3. Codes in this file directly use the dataset, which is named **DATA_trimmed.csv**, produced from the other r markdown file, named **Data_preprocessing&modeling.rmd**, since the running time needed for **Data_preprocessing&modeling.rmd** is around 7~8 hours. **Nodes.csv** and **Links.csv** used later also come from **Data_preprocessing&modeling.rmd**.  
+
+4. All the r markdown and excel files, temporary and finally used could be found in **Small_World_Phenomenon_in_SCUT.zip**, also on github, [`Small World Phenomenon in SCUT`](https://github.com/GuanQinG-GitHub/Six-degree-separation-in-SCUT).
+
+# Load files, libraries and functions
+```{r, message=FALSE}
+# Load the trimmed data
+Data = read.csv("DATA_trimmed.csv")
+
+# Load the links and nodes files to construct the graph
+links = read.csv("Links.csv")
+nodes = read.csv("Nodes.csv")
+
+library(igraph)
+library(RColorBrewer)
+library(randomcoloR)
+
+# Load a function used for inference
+load(url("http://www.stat.duke.edu/~cr173/Sta102_Sp16/Lab/inference.RData"))
+# Create a function take letters out from a string
+letter_num_spilt = function(str){
+  str_splitted = strsplit(str,"")
+  letter_length = suppressWarnings(length(str_splitted[[1]][as.numeric(str_splitted[[1]][])>10]))
+  return(substr(str,1,letter_length))
+}
+```
+
+
+# Statistical Analysis
+
+## Examine the distribution of SCUTers' social radii
+Describe the distribution of students’ average degree of separation in SCUT. Use some plots to evaluate whether it follows a nearly normal distribution. Provide some evidence to your conclusions. (hint: use histogram, boxplot and normal probability plot.)
+```{r, fig.width=12}
+par(mfrow = c(1,2))
+
+# Plot the histogram of social radius
+hist = hist(Data$Social.Radius, xlim = c(1.8,3), breaks = 15, col = "#74ADD1",
+            xlab = "Social Radius", ylab = "Frequency", cex.lab = 1.5,
+            main = "Histogram of Social Radius")
+for (i in 1:length(hist$counts)){
+  if (i == 1){
+    text(hist$breaks[i]+0.080,hist$counts[i]-4,hist$counts[i],col = "black")
+  }else{
+    text(hist$breaks[i]+0.025,hist$counts[i]+6,hist$counts[i],col = "black")
+  }
+}
+
+# Plot the box plot of social radius
+box = boxplot(Data$Social.Radius, horizontal = T, varwidth = T,
+        xlab = "Social Radius", cex.lab = 1.5, col = "#FFFFBF",
+        main = "Box plot of the social radius")
+```
+```{r}
+# Five-number summary of social radius  
+summary(Data$Social.Radius)
+```
+From the box plot we can see that the minimum and Q1 are quite close. 
+
+```{r,fig.width=12}
+par(mfrow = c(1,2))
+# normal probability plot
+qqnorm(Data$Social.Radius, col = "#74ADD1", cex.lab = 1.5)
+qqline(Data$Social.Radius, col = "#F46D43", lwd = 2)
+# comparison with a normal one
+sim_norm = rnorm(n = length(Data$Social.Radius), mean = mean(Data$Social.Radius), sd = sd(Data$Social.Radius))
+qqnorm(sim_norm, col = "#74ADD1",cex.lab = 1.5 )
+qqline(sim_norm, col = "#F46D43", lwd = 2)
+```
+The points are quite departure from the line.
+
+From what we see above, we can draw a conclusion that the distribution of the students’ average degree of separation in SCUT is not normal.
+```{r,fig.width=12}
+par(mfrow = c(1,2))
+
+remove_data=subset(Data, Data$Social.Radius <= 2) 
+qqnorm(remove_data$Social.Radius, col = "#74ADD1",cex.lab = 1.5)
+qqline(remove_data$Social.Radius, col = "#F46D43", lwd = 2 )
+hist(remove_data$Social.Radius,breaks = 15, col = "#74ADD1",cex.lab = 1.5)
+```
+
+## Compute 95% confidence intervals of the average degree of separation among SCUTers
+Inference about the distribution of students’ average degree of separation in SCUT.(average degree of separation:the average number of social connections between any two of SCUTers)
+```{r,message=FALSE}
+
+# Compute the mean shortest distances among the graph 
+net <- graph_from_data_frame(d=links, vertices=nodes, directed=F) 
+# Next line runs around half a minute
+dist = distances(net) # the shortest-distance matrix of all nodes in the graph
+
+# Compute the mean and standard deviation of the average degree of separation
+sample_mean = mean(dist[,])
+sample_std = sd(dist[,])
+sample_amount = length(nodes)
+
+# Compute the 95% confidence interval of the average degree of separation
+upper_bound = sample_mean + 1.96*sample_std/sqrt(sample_amount)
+lower_bound = sample_mean - 1.96*sample_std/sqrt(sample_amount)
+
+# Show the result
+cat("The 95% confidence interval of the average degree of separation among SCUTers is:", "[",lower_bound,",",upper_bound,"]")
+```
+
+<!-- #### The distribution of "Social.Radius" -->
+<!-- ```{r} -->
+<!-- # histogram -->
+<!-- hist(Data$Social.Radius, xlim = c(1.8, 3), ylim = c(0, 200), main = "The distribution of 'Social.Radius'", xlab = "Social Radius", col = "#74ADD1", border = c('gray'), breaks = 30) -->
+<!-- ``` -->
+
+<!-- The distribution of the students’ average degree of separation in SCUT centers at around 2.6 and spreads from 1.95 to 2.95 with a striking departure at 1.95. -->
+<!-- ```{r} -->
+<!-- summary(Data$Social.Radius) -->
+<!-- # boxplot -->
+<!-- boxplot(Data$Social.Radius, main = "Boxplot of 'Social.Radius'", col = "#74ADD1") -->
+<!-- ``` -->
+
+<!-- From the box plot we can see that the minimum and Q1 are quite close.  -->
+<!-- ```{r,fig.width=12} -->
+<!-- par(mfrow = c(1,2)) -->
+<!-- # normal probability plot -->
+<!-- qqnorm(Data$Social.Radius, col = "#74ADD1") -->
+<!-- qqline(Data$Social.Radius, col = "#F46D43", lwd = 2) -->
+<!-- # comparison with a normal one -->
+<!-- sim_norm = rnorm(n = length(Data$Social.Radius), mean = mean(Data$Social.Radius), sd = sd(Data$Social.Radius)) -->
+<!-- qqnorm(sim_norm, col = "#74ADD1") -->
+<!-- qqline(sim_norm, col = "#F46D43", lwd = 2 ) -->
+<!-- ``` -->
+
+<!-- The points are quite departure from the line. -->
+
+<!-- From what we see above, we can draw a conclusion that the distribution of the students’ average degree of separation in SCUT is not normal. -->
+<!-- ```{r,fig.width=12} -->
+<!-- par(mfrow = c(1,2)) -->
+
+<!-- remove_data=subset(Data, Data$Social.Radius <= 2)  -->
+<!-- qqnorm(remove_data$Social.Radius, col = "#74ADD1") -->
+<!-- qqline(remove_data$Social.Radius, col = "#F46D43", lwd = 2 ) -->
+<!-- hist(remove_data$Social.Radius,breaks = 15) -->
+<!-- ``` -->
+
+## What's the composition or division of each attribute in the dataset? (hint: use table(x) and barplot(x))
+
+### Decomposition according to campus and grade
+```{r, fig.width = 12}
+par(mfrow = c(1,2))
+
+barplot(table(Data$your_campus), col=brewer.pal(n = 3, name = "RdYlBu"), border = c('black'), ylim = c(0, 260), main = "The composition of 'your_campus'", xlab = "your_campus", ylab = 'Count',cex.lab = 1.5)
+barplot(table(Data$your_grade)[c(1,5,3,4,2)], col=brewer.pal(n = 5, name = "RdYlBu"), border = c('black'), ylim = c(0, 260), main = "The composition of 'your_grade'", xlab = "your_grade", ylab = 'Count',cex.lab = 1.5)
+```
+
+###  Decomposition according to academy
+```{r, fig.height = 6}
+
+# Remove the index-number of each interviewed student
+Data_no_index = letter_num_spilt(as.character(Data$your_acade))
+
+# Create a vector constitutes of all academies
+acade = c("A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z","a","b","c","d","e","f","g")
+
+# Plot the pie chart
+labs = rep(0,length(table(Data_no_index)))
+for (i in 1:length(table(Data_no_index))){
+  if ((100*table(Data_no_index)/535)[i] >= 2){
+    temp = paste(names(table(Data_no_index))[i],round((100*table(Data_no_index)/535)[i],2),sep = " ")
+    labs[i] = paste(temp,"%",sep = "")
+  }else{
+    labs[i] = ""
+  }
+}
+pie(table(Data_no_index), col=distinctColorPalette(33),edges = 800,label = labs,
+    main = "Pie chart of students from different academies in the dataset")
+```
+
+
+###  Decomposition according to other attributes
+```{r}
+sep_club_stud_org <- table(Data$club_stud_org)
+sep_class_commi <- table(Data$class_commi)
+sep_soci_acti <- table(Data$soci_acti)
+sep_dali_live <- table(Data$dali_live)
+sep_local <- table(Data$local)
+
+a <- as.data.frame.array(sep_club_stud_org)
+b <- as.data.frame.array(sep_class_commi)
+c <- as.data.frame.array(sep_soci_acti)
+d <- as.data.frame.array(sep_dali_live)
+e <- as.data.frame.array(sep_local)
+k <- cbind(a,b,c,d,e)
+row.names(k) = c("No","Yes")
+
+
+bar = barplot(height = matrix(c(k[1,1],k[2,1],k[1,2],k[2,2],k[1,3],k[2,3],k[1,4],k[2,4],k[1,5],k[2,5]),
+                        ncol = 5, nrow = 2), 
+        names.arg = c('Club', 'Committee', 'Social_activity','Daily_life','Local'),
+        col = c('#FDAE61', '#74ADD1'),
+        border = c('black'),
+        main = "The division of attribute",
+        xlab = 'Attribute',
+        ylab = 'Count', cex.lab = 1.5,
+        horiz = FALSE,
+        ylim = c(0, 420),
+        legend.text = c('No', 'Yes'),  
+        beside = TRUE 
+       )
+for (i in 1:dim(bar)[1]){
+  for (j in 1:dim(bar)[2]) {
+    text(bar[i,j],k[i,j] + 14,k[i,j],cex = 1.2)
+  }
+}
+```
+
+## Inference about the influence of some subjective influencing factors to the students’ average degree of separation
+
+### The average degree of separation & school
+Test if the average degree of separation between students majoring in natural science and in other like humanities and social sciences are different. (hint: use inference())
+```{r, fig.width=6}
+
+# Distinguish school
+science_school = c("A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","V","W","X","Y","g")
+art_school = c("R","S","T","U","Z","a","b","c","d","e","f")
+
+# Create a vector to store the science/art information
+school = rep(0,length(Data$your_acade))
+# Distinguish science or art school according to the academy
+school[letter_num_spilt(as.character(Data$your_acade)) %in% science_school] = "Science"
+school[letter_num_spilt(as.character(Data$your_acade)) %in% art_school] = "Others"
+
+# Append the school vector to the trimmed data
+Data[,10] = school
+names(Data)[10] = "school"
+
+# Change the label name
+Social_Radius = Data$Social.Radius
+School = Data$school
+
+# Inference test
+suppressWarnings (inference(y = Social_Radius, x = School, est = "mean", type = "ht", null = 0, alternative = "twosided", method = "theoretical"))
+```
+
+From the result in the above chunk, the p-value is quite large, which means we fail to reject H0, so there is no difference in the average degree of separation between students majoring in natural science and in other like humanities and social sciences.
+
+### The average degree of separation & academy
+```{r,  fig.height=5, fig.width=12}
+
+# Remove the index-number of each interviewed student
+Data_no_index = letter_num_spilt(as.character(Data$your_acade))
+# 
+Campus_gzic = unique(Data_no_index[Data$your_campus == "GZIC"])
+Campus_wushan = unique(Data_no_index[Data$your_campus == "WuShan"])
+Campus_hemc = unique(Data_no_index[Data$your_campus == "HEMC"])
+
+# Create a vector constitutes of all academies
+acade = c("A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z","a","b","c","d","e","f","g")
+
+# Create vectors to store social radii for each academy
+bp = boxplot(Data$Social.Radius ~ factor(Data_no_index,acade),
+        xlab = "Academy", ylab = "Social Radius", cex.lab = 1.5, plot = FALSE)
+color = rep(0,length(bp$names))
+color[bp$names %in% Campus_gzic] = "#FC8D59"
+color[bp$names %in% Campus_wushan] = "#91BFDB"
+color[bp$names %in% Campus_hemc] = "#FFFFBF"
+bp = boxplot(Data$Social.Radius ~ factor(Data_no_index,acade),
+            xlab = "Academy", ylab = "Social Radius", cex.lab = 1.5,
+            col = color)
+text(1.6,2.9,"GZIC",col = "black", cex = 1.8)
+text(16.6,2.9,"Wushan",col = "black", cex = 1.8)
+text(25.2,2.9,"HEMC",col = "black", cex = 1.8)
+```
+
+### The average degree of separation & campus 
+Make a mosaic plot about "social radius" and "campus", and what can we learn about from it. (hint: use mosaicplot(table(x,y)))
+```{r, fig.width=12}
+par(mfrow = c(1,2))
+
+your_campus <- Data$your_campus
+Social.Radius <- round(Data$Social.Radius,digits=1)
+mosaicplot(table(your_campus,Social.Radius), main = "Social Radius distributions in three campuses", col=brewer.pal(n = 10, name = "RdYlBu"), border = c('black'),las = 1)
+mosaicplot(table(Social.Radius,your_campus), main = "Social Radius distributions in three campuses", col=brewer.pal(n = 10, name = "RdYlBu"), border = c('black'),las = 1)
+```
+
+Form the mosaic plot, we find that the most frequent "social.Radius" is 2. Except for 2, the "Social.Radius" are almost normally distributed with different centers. Among three, the social radius of students in GZIC centers at highest value, and the social radius of students in HEMC centers at lowest value.
+
+### The average degree of separation & local/non-local
+Some suggest that it is easier for local students to build a wider social circle at school than non-local students, conduct a test of significance to see if we have enough evidence to say it.
+```{r}
+suppressWarnings(inference(y = Data$Social.Radius, x = Data$local, est = "mean", type = "ht", null = 0, alternative = "greater", method = "theoretical"))
+```
+
+the p-value = 0.3424. So we have 65.73% of confidence to say that it is easier for local students to build a wider social circle at school.
+
+### The average degree of separation & grade
+Use box plot to show how the length of time in school relates to the average degree of separation? (hint: use boxplot(x~y))
+```{r}
+Data$your_grade2 <- factor(Data$your_grade,levels = c("freshman", "sophomore", "junior", "senior", "graduate"))
+boxplot(Data$Social.Radius~Data$your_grade2, main = "Boxplot of 'Social.Radius' to ''your_grade", col = "#FFFFBF")
+```
+
+From the box plot we can see that as the length of time in school increase the main body of the social radius move downwards, which means it is easier for them to find an arbitrary student in SCUT. You might have noticed that there is a rise in graduate, this is because some graduates are new to his school.
+
+## Inferences about the influences of some objective influencing factors to the students’ average degree of separation
+
+### The average degree of separation & join a club/student organization or not
+Conduct a hypothesis test at the α = 0.1 significance level evaluating whether joining a club or student organization helps expand our social circle? Interpret the p-value.
+```{r}
+Social_Radius=Data$Social.Radius
+Club_stud_org=Data$club_stud_org
+Club_stud_org[Club_stud_org==0]<-"didn't join"
+Club_stud_org[Club_stud_org==1]<-"joined"
+inference(y =Social_Radius, x =Club_stud_org, est = "mean", type = "ht", null = 0, alternative = "greater", method = "theoretical",order = c("didn't join","joined"))
+```
+<!-- $H_{0}: \mu_{didn't.join}-\mu_{joined}=0$ -->
+
+<!-- $H_{a}:\mu_{didn't.join}-\mu_{joined}>0$ -->
+
+<!-- P_value<α. So reject $H_{0}$ and accept $H_{a}$ -->
+
+The result shows that the social radius of them who joined a club or student organization is smaller than who did not.
+
+### The average degree of separation & join the class committee or not
+Compute both the 95% confidence of intervals of the mean “Social_Radius” of the students who have joined or not joined the class committee, and compare the difference.
+```{r}
+Class_committee_joined<-Data$Social.Radius[Data$class_commi==1]
+Class_committee_not_joined<-Data$Social.Radius[Data$class_commi==0]
+print("students who have joined class committee:")
+inference(y =Class_committee_joined, est = "mean", type = "ci", null = 0, alternative = "twosided", method = "theoretical",conflevel = 0.95)
+print("students who have not joined class committee:")
+inference(y =Class_committee_not_joined, est = "mean", type = "ci", null = 0, alternative = "twosided", method = "theoretical",conflevel = 0.95)
+```
+The social radius mean of who have joined class committee is smaller than who have not joined.
+The confidence interval of who have joined class committee is larger than who have not joined.
+
+### The average degree of separation & attend social activities frequently or not
+Use “soci_acti” and “social_Radius” summarize them and comment on any apparent relationship you see.
+```{r}
+Social_Radius=Data$Social.Radius
+Social_activity=Data$soci_acti
+Social_activity[Social_activity==1]="Social active"
+Social_activity[Social_activity==0]="Social inactive"
+inference(y =Social_Radius, x =Social_activity, est = "mean", type = "ht", null = 0, alternative = "greater", method = "theoretical",order = c("Social inactive","Social active"))
+```
+<!-- $H_{0}: \mu_{active}-\mu_{inactive}=0$ -->
+
+<!-- $H_{a}:\mu_{inactive}-\mu_{active}>0$ -->
+P_value =0 (means P_value is very small). Reject $H_{0}$ and accept $H_{a}$.
+From the data, clearly know that the social activity is definitely affect the social.
+The social active students have less social distance.
+
+### The average degree of separation & colorful campus life or not 
+Use “dali_live” to separate the population, then describe and compare the distributions of their “social radius”.
+```{r,fig.width=12}
+Daily_live_rich<-Data$Social.Radius[Data$dali_live==1]
+Daily_live_monotonous<-Data$Social.Radius[Data$dali_live==0]
+par(mfrow=c(1,2))
+print("The summary of rich daily live:")
+summary(Daily_live_rich)
+print("The summary of rich monotonous live:")
+summary(Daily_live_monotonous)
+hist(Daily_live_monotonous,xlim = c(1.8,3), col = "#91BFDB",
+     main = "Monotonous daily live hisogram",xlab = "Social radius")
+hist(Daily_live_rich,xlim = c(1.8,3), col = "#91BFDB",
+     main = "Rich daily live histogram",xlab = "Social radius")
+```
+
+The minimum and maximum number of monotonous daily live students and rich daily live students are almost the same.  
+The mean value, median and 3rd quarter value of rich daily lift students are smaller than students who have monotonous life.  
+The number of social radius less than 2.0 is almost same and large.  
+For the data which social radius larger than 2.0, The distribution of monotonous daily life students' social radius is unimodal whose center is within 2.7 to 2.8 and left-skewed.  
+Also for the data selected above, the distribution of rich daily life students' social radius is unimdal whose center is within 2.6 to 2.7.   
+The data change of monotonous daily life students sharper than rich daily life.  
+
+# Conclusion
+
+
